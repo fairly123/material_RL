@@ -1,0 +1,63 @@
+{
+    "parameters": [
+        {
+            "descr": "spherical angle of incident plane wave",
+            "expr": "0",
+            "name": "theta",
+            "value": "0"
+        },
+        {
+            "descr": "spherical angle of incident plane wave",
+            "expr": "0",
+            "name": "phi",
+            "value": "0"
+        },
+        {
+            "descr": "单元周期长度",
+            "expr": "14.2",
+            "name": "P",
+            "value": "14.2"
+        },
+        {
+            "expr": "3.81",
+            "name": "h2",
+            "value": "3.81"
+        },
+        {
+            "expr": "0.15",
+            "name": "tp2",
+            "value": "0.15"
+        },
+        {
+            "expr": "5.8",
+            "name": "ta",
+            "value": "5.8"
+        },
+        {
+            "expr": "0.05",
+            "name": "tp1",
+            "value": "0.05"
+        },
+        {
+            "expr": "5",
+            "name": "M",
+            "value": "5"
+        },
+        {
+            "expr": "P/2/M",
+            "name": "dx",
+            "value": "1.42"
+        },
+        {
+            "expr": "P/2/M",
+            "name": "dy",
+            "value": "1.42"
+        },
+        {
+            "expr": "20",
+            "name": "R1",
+            "value": "20"
+        }
+    ],
+    "version": 1
+}

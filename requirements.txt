@@ -1,0 +1,12 @@
+numpy==1.24.3
+gym>=0.17.0
+torch==2.1.0
+matplotlib>=3.3.0
+tensorboard>=2.3.0
+gym-super-mario-bros==7.4.0
+nes-py==8.2.1
+opencv-python>=4.5.0
+moviepy>=1.0.0
+tqdm>=4.50.0
+wandb>=0.12.0  
+stable-baselines3==2.1.0

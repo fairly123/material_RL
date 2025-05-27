@@ -1,0 +1,19 @@
+' define brick
+
+Sub Main ()
+
+
+'## Merged Block - define brick: component1:1ITO
+StartVersionStringOverrideMode "2022.4|31.0.1|20220426" 
+With Brick
+     .Reset 
+     .Name "1ITO" 
+     .Component "component1" 
+     .Material "ITO" 
+     .Xrange "-P/2", "P/2" 
+     .Yrange "-P/2", "P/2" 
+     .Zrange "0", "0" 
+     .Create
+End With
+StopVersionStringOverrideMode 
+End Sub

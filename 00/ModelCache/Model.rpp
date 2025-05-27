@@ -1,0 +1,90 @@
+10
+0
+0
+7
+SZmax(1),Zmax(1)_1D_ScaleAxis
+0D or 1D Result from 1D Result (Rescale, Derivation, etc)
+1
+1D
+General 1D
+P
+EP11
+0D or 1D Result from 1D Result (Rescale, Derivation, etc).rtp
+1
+SZmax(1),Zmax(1)_1D_ScaleAxis
+SZmin(1),Zmax(1)_1D_ScaleAxis
+0D or 1D Result from 1D Result (Rescale, Derivation, etc)
+1
+1D
+General 1D
+P
+EP11
+0D or 1D Result from 1D Result (Rescale, Derivation, etc).rtp
+1
+SZmin(1),Zmax(1)_1D_ScaleAxis
+A
+Mix Template Results
+1
+1DC
+General 1D
+P
+EP11
+Mix Template Results.rtp
+1
+A
+R
+Mix Template Results
+1
+1DC
+General 1D
+P
+EP11
+Mix Template Results.rtp
+1
+R
+T
+Mix Template Results
+1
+1D
+General 1D
+P
+EP11
+Mix Template Results.rtp
+1
+T
+Extract Material Properties
+Extract Permittivity and Permeability from S-Parameters
+1
+M1DC
+S-Parameters
+P
+ED10
+Extract Permittivity and Permeability from S-Parameters^+MWS.rtp
+7
+Extract Material Properties\Epsilon_r
+Extract Material Properties\Mu_r
+Extract Material Properties\S1,1
+Extract Material Properties\S2,1
+Extract Material Properties\z
+Extract Material Properties\n
+Extract Material Properties\ExpTerm
+Extract Material Properties_1
+Extract Permittivity and Permeability from S-Parameters
+1
+M1DC
+S-Parameters
+P
+ED10
+Extract Permittivity and Permeability from S-Parameters^+MWS.rtp
+7
+Extract Material Properties_1\Epsilon_r
+Extract Material Properties_1\Mu_r
+Extract Material Properties_1\S1,1
+Extract Material Properties_1\S2,1
+Extract Material Properties_1\z
+Extract Material Properties_1\n
+Extract Material Properties_1\ExpTerm
+3
+1:Tables\1D Results\A
+2:Tables\1D Results\R
+3:Tables\1D Results\T
