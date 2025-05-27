@@ -1,21 +1,20 @@
-# Mario RL with PPO
+# Material RL with PPO
 
-这是一个使用PPO（Proximal Policy Optimization）算法来训练AI玩超级马里奥游戏的项目。
+这是一个使用PPO（Proximal Policy Optimization）算法来训练AI优化材料（透明吸波体）属性的项目。
 
 ## 环境要求
 
 - Python 3.8+
 - PyTorch
 - Stable-Baselines3
-- Gym Super Mario Bros
 
 ## 安装
 
 1. 克隆此仓库：
 
 ```bash
-git clone https://github.com/your-username/mario-rl.git
-cd mario-rl
+git clone https://github.com/your-username/material-rl.git
+cd material-rl
 ```
 
 2. 安装依赖项：
@@ -27,7 +26,7 @@ pip install -r requirements.txt
 ## 项目结构
 
 ```
-mario-rl/
+material-RL/
 ├── requirements.txt        # 项目依赖
 ├── main.py                 # 主程序入口
 ├── train.py                # 训练脚本
@@ -35,16 +34,17 @@ mario-rl/
 ├── config.py               # 配置文件
 ├── models/                 # 模型定义
 │   ├── __init__.py
-│   ├── dqn.py              # DQN模型
-│   └── ppo.py              # PPO模型
+│   ├── dqn_model.py              # DQN模型
+│   └── ppo_model.py              # PPO模型
 ├── agents/                 # 智能体实现
 │   ├── __init__.py
 │   ├── base_agent.py       # 基础智能体类
 │   ├── dqn_agent.py        # DQN智能体
 │   └── ppo_agent.py        # PPO智能体
 ├── environment/            # 环境包装器
-│   ├── __init__.py
-│   └── mario_env.py        # 超级马里奥环境适配器
+│   ├── CST.py
+│   ├── mario_env.py        # 超级马里奥环境适配器
+    └── material_env.py
 ├── utils/                  # 工具函数
 │   ├── __init__.py
 │   ├── replay_buffer.py    # 经验回放缓冲区
@@ -133,6 +133,8 @@ tensorboard --logdir logs
 
 本项目采用MIT许可证。详见LICENSE文件。
 
+
+## 更新日志
 2025.5.28更新内容
 对代码进行了以下主要修改：
 重新设计了动作空间（action_space）：
