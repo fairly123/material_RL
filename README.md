@@ -61,7 +61,14 @@ material-RL/
 运行以下命令开始训练：
 
 ```bash
-python main.py train --agent ppo --world 1-1 --timesteps 1000000
+# 使用DQN训练
+python train.py --agent dqn --timesteps 1000000
+
+# 使用PPO训练
+python train.py --agent ppo --timesteps 1000000
+
+# 从已有模型继续训练
+python train.py --agent dqn --load-model checkpoints/best_dqn_model.pt
 ```
 
 训练过程中的模型会每10000步保存一次，保存在`checkpoints`目录下。
