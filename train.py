@@ -1,5 +1,5 @@
 """
-训练脚本，用于训练智能体
+训练脚本，用于训练智能体优化材料结构和参数
 """
 import os
 import argparse
@@ -12,16 +12,14 @@ import gymnasium as gym
 from datetime import datetime
 
 from config import (
-    DEVICE, ENV_NAME, WORLD_STAGE, RENDER_MODE, FRAME_SKIP, 
-    FRAME_STACK, RESIZE_SHAPE, REWARD_SCALE, MAX_EPISODE_STEPS,
-    TOTAL_TIMESTEPS, SAVE_INTERVAL, LOG_INTERVAL, EVAL_INTERVAL, 
+    DEVICE, TOTAL_TIMESTEPS, SAVE_INTERVAL, LOG_INTERVAL, EVAL_INTERVAL, 
     EVAL_EPISODES, SEED, DQN_CONFIG, PPO_CONFIG, VISUALIZATION_CONFIG,
-    CHECKPOINT_DIR
+    CHECKPOINT_DIR, MATERIAL_CONFIG
 )
-from environment.mario_env import MarioEnv
+from environment.material_env import MaterialEnv
 from agents.dqn_agent import DQNAgent
 from agents.ppo_agent import PPOAgent
-from utils.visualization import Visualizer, VideoRecorder
+from utils.visualization import Visualizer
 
 
 def set_seed(seed=SEED):
@@ -53,18 +51,24 @@ def create_agent(agent_type, env, device):
     Returns:
         agent: 智能体实例
     """
-    state_shape = env.observation_space.shape
+    # 获取观察空间和动作空间的维度
+    obs_shape = {
+        'matrix': env.observation_space['matrix'].shape,
+        'r1': env.observation_space['r1'].shape,
+        'p': env.observation_space['p'].shape,
+        'd': env.observation_space['d'].shape
+    }
     action_space = env.action_space
     
     if agent_type == 'dqn':
-        return DQNAgent(state_shape, action_space, device, DQN_CONFIG)
+        return DQNAgent(obs_shape, action_space, device, DQN_CONFIG)
     elif agent_type == 'ppo':
-        return PPOAgent(state_shape, action_space, device, PPO_CONFIG)
+        return PPOAgent(obs_shape, action_space, device, PPO_CONFIG)
     else:
         raise ValueError(f"Unknown agent type: {agent_type}")
 
 
-def evaluate_agent(agent, env, n_episodes=EVAL_EPISODES, render=False):
+def evaluate_agent(agent, env, n_episodes=EVAL_EPISODES):
     """
     评估智能体性能
     
@@ -72,69 +76,42 @@ def evaluate_agent(agent, env, n_episodes=EVAL_EPISODES, render=False):
         agent: 智能体实例
         env: 环境实例
         n_episodes: 评估回合数
-        render: 是否渲染
     
     Returns:
         eval_info: 评估信息
     """
     total_rewards = []
     total_lengths = []
-    max_x_positions = []
-    recorder = None
-    
-    if render:
-        recorder = VideoRecorder()
-        recorder.start_recording()
+    best_absorption_intervals = []
     
     for episode in range(n_episodes):
-        state, info = env.reset()
+        state = env.reset()
         episode_reward = 0
         episode_length = 0
-        max_x_pos = 0
+        best_absorption_interval = 0
         done = False
         
         while not done:
             action = agent.select_action(state, evaluate=True)
+            next_state, reward, done, info = env.step(action)
             
-            # 对于不同的智能体类型，select_action可能返回不同的格式
-            if isinstance(action, tuple):
-                action = action[0]
-                
-            next_state, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            
-            # 更新指标
             episode_reward += reward
             episode_length += 1
-            if 'x_pos' in info:
-                max_x_pos = max(max_x_pos, info['x_pos'])
-                
-            # 录制视频帧
-            if render and recorder is not None:
-                frame = env.render()
-                recorder.add_frame(frame)
+            if 's_params' in info:
+                best_absorption_interval = max(best_absorption_interval, info['s_params'])
                 
             state = next_state
             
-        # 保存指标
         total_rewards.append(episode_reward)
         total_lengths.append(episode_length)
-        max_x_positions.append(max_x_pos)
+        best_absorption_intervals.append(best_absorption_interval)
     
-    # 保存评估视频
-    video_path = None
-    if render and recorder is not None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        video_path = recorder.save_video(f"eval_{timestamp}")
-    
-    # 计算平均指标
     eval_info = {
         "mean_reward": np.mean(total_rewards),
         "std_reward": np.std(total_rewards),
         "mean_length": np.mean(total_lengths),
-        "mean_x_pos": np.mean(max_x_positions) if max_x_positions else 0,
-        "max_x_pos": np.max(max_x_positions) if max_x_positions else 0,
-        "video_path": video_path
+        "mean_absorption_interval": np.mean(best_absorption_intervals),
+        "max_absorption_interval": np.max(best_absorption_intervals)
     }
     
     return eval_info
@@ -154,129 +131,81 @@ def train_dqn(agent, env, timesteps, visualizer=None):
     episode = agent.episode_counter
     best_reward = -float('inf')
     
-    # 进度条
     pbar = tqdm(total=timesteps)
     pbar.update(global_step)
     
     while global_step < timesteps:
-        state, info = env.reset()
+        state = env.reset()
         episode_reward = 0
         episode_length = 0
-        max_x_pos = 0
-        episode_frames = []
+        best_absorption_interval = 0
         
         done = False
         while not done:
-            # 选择动作
             action = agent.select_action(state)
+            next_state, reward, done, info = env.step(action)
             
-            # 执行动作
-            next_state, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            
-            # 存储经验
             agent.store_transition(state, action, next_state, reward, done)
-            
-            # 学习
             loss = agent.optimize_model()
             
-            # 记录指标
             episode_reward += reward
             episode_length += 1
             global_step += 1
-            if 'x_pos' in info:
-                max_x_pos = max(max_x_pos, info['x_pos'])
+            if 's_params' in info:
+                best_absorption_interval = max(best_absorption_interval, info['s_params'])
                 
-            # 记录视频帧
-            if visualizer is not None and visualizer.save_video:
-                frame = env.render()
-                episode_frames.append(frame)
-                
-            # 记录训练损失
             if loss is not None and visualizer is not None:
                 visualizer.log_train(global_step, {"loss": loss})
                 
-            # 评估智能体
             if global_step % EVAL_INTERVAL == 0:
-                # 创建单独的评估环境，避免影响训练环境
-                eval_env = MarioEnv(
-                    env_name=ENV_NAME,
-                    world_stage=WORLD_STAGE,
-                    frame_skip=FRAME_SKIP,
-                    frame_stack=FRAME_STACK,
-                    reward_scale=REWARD_SCALE,
-                    resize_shape=RESIZE_SHAPE,
-                    render_mode="rgb_array"
-                )
-                
-                eval_info = evaluate_agent(agent, eval_env, n_episodes=EVAL_EPISODES)
-                
-                # 关闭评估环境
-                eval_env.close()
+                eval_info = evaluate_agent(agent, env)
                 
                 print(f"\nEvaluation at step {global_step}:")
                 print(f"  Mean reward: {eval_info['mean_reward']:.2f}")
-                print(f"  Mean episode length: {eval_info['mean_length']:.2f}")
-                print(f"  Mean x position: {eval_info['mean_x_pos']:.2f}")
-                print(f"  Max x position: {eval_info['max_x_pos']:.2f}")
+                print(f"  Mean absorption interval: {eval_info['mean_absorption_interval']:.2f}")
+                print(f"  Max absorption interval: {eval_info['max_absorption_interval']:.2f}")
                 
-                # 可视化评估结果
                 if visualizer is not None:
                     visualizer.log_step(global_step, {
                         "eval_reward": eval_info['mean_reward'],
-                        "eval_length": eval_info['mean_length'],
-                        "eval_x_pos": eval_info['mean_x_pos'],
-                        "eval_max_x_pos": eval_info['max_x_pos']
+                        "eval_absorption_interval": eval_info['mean_absorption_interval'],
+                        "eval_max_absorption_interval": eval_info['max_absorption_interval']
                     })
                 
-                # 保存最佳模型
                 if eval_info['mean_reward'] > best_reward:
                     best_reward = eval_info['mean_reward']
                     agent.save_model(os.path.join(CHECKPOINT_DIR, "best_dqn_model.pt"))
                     print(f"  New best model with reward: {best_reward:.2f}")
                     
-            # 保存模型
             if global_step % SAVE_INTERVAL == 0:
                 agent.save_model(os.path.join(CHECKPOINT_DIR, f"dqn_model_step_{global_step}.pt"))
                 
-            # 更新进度条
             pbar.update(1)
             
-            # 检查是否达到总步数
             if global_step >= timesteps:
                 break
                 
             state = next_state
         
-        # 回合结束，记录回合统计信息
         episode += 1
         agent.episode_counter = episode
         
-        # 记录回合信息
         episode_info = {
             "episode_reward": episode_reward,
             "episode_length": episode_length,
-            "max_x_pos": max_x_pos,
+            "best_absorption_interval": best_absorption_interval,
             "epsilon": agent.epsilon
         }
         
-        # 打印回合信息
         if episode % LOG_INTERVAL == 0:
             print(f"\nEpisode {episode}:")
             print(f"  Reward: {episode_reward:.2f}")
-            print(f"  Length: {episode_length}")
-            print(f"  Max x position: {max_x_pos}")
+            print(f"  Best absorption interval: {best_absorption_interval:.2f}")
             print(f"  Epsilon: {agent.epsilon:.4f}")
             
-        # 可视化回合信息
         if visualizer is not None:
-            avg_metrics = visualizer.log_episode(episode, episode_info)
-            
-            # 保存回合视频
-            if visualizer.save_video and len(episode_frames) > 0:
-                visualizer.save_episode_video(episode, episode_frames)
+            visualizer.log_episode(episode, episode_info)
                 
-    # 训练结束，保存最终模型
     agent.save_model(os.path.join(CHECKPOINT_DIR, "final_dqn_model.pt"))
     pbar.close()
 
@@ -295,145 +224,95 @@ def train_ppo(agent, env, timesteps, visualizer=None):
     episode = agent.episode_counter
     best_reward = -float('inf')
     
-    # 进度条
     pbar = tqdm(total=timesteps)
     pbar.update(global_step)
     
-    # 每n_steps更新一次
     n_steps = PPO_CONFIG["n_steps"]
     
     while global_step < timesteps:
-        state, info = env.reset()
+        state = env.reset()
         episode_reward = 0
         episode_length = 0
-        max_x_pos = 0
-        episode_frames = []
+        best_absorption_interval = 0
         
         done = False
         step_count = 0
         
         while not done:
-            # 选择动作
             action, log_prob, value = agent.select_action(state)
+            next_state, reward, done, info = env.step(action)
             
-            # 执行动作
-            next_state, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            
-            # 存储经验
             agent.store_transition(state, action, log_prob, value, reward, done)
             
-            # 记录指标
             episode_reward += reward
             episode_length += 1
             global_step += 1
             step_count += 1
-            if 'x_pos' in info:
-                max_x_pos = max(max_x_pos, info['x_pos'])
+            if 's_params' in info:
+                best_absorption_interval = max(best_absorption_interval, info['s_params'])
                 
-            # 记录视频帧
-            if visualizer is not None and visualizer.save_video:
-                frame = env.render()
-                episode_frames.append(frame)
-                
-            # 达到n_steps或回合结束时更新策略
             if step_count % n_steps == 0 or done:
                 loss_info = agent.learn()
-                
-                # 记录训练损失
                 if visualizer is not None:
                     visualizer.log_train(global_step, loss_info)
                     
-            # 评估智能体
             if global_step % EVAL_INTERVAL == 0:
-                # 创建单独的评估环境，避免影响训练环境
-                eval_env = MarioEnv(
-                    env_name=ENV_NAME,
-                    world_stage=WORLD_STAGE,
-                    frame_skip=FRAME_SKIP,
-                    frame_stack=FRAME_STACK,
-                    reward_scale=REWARD_SCALE,
-                    resize_shape=RESIZE_SHAPE,
-                    render_mode="rgb_array"
-                )
-                
-                eval_info = evaluate_agent(agent, eval_env, n_episodes=EVAL_EPISODES)
-                
-                # 关闭评估环境
-                eval_env.close()
+                eval_info = evaluate_agent(agent, env)
                 
                 print(f"\nEvaluation at step {global_step}:")
                 print(f"  Mean reward: {eval_info['mean_reward']:.2f}")
-                print(f"  Mean episode length: {eval_info['mean_length']:.2f}")
-                print(f"  Mean x position: {eval_info['mean_x_pos']:.2f}")
-                print(f"  Max x position: {eval_info['max_x_pos']:.2f}")
+                print(f"  Mean absorption interval: {eval_info['mean_absorption_interval']:.2f}")
+                print(f"  Max absorption interval: {eval_info['max_absorption_interval']:.2f}")
                 
-                # 可视化评估结果
                 if visualizer is not None:
                     visualizer.log_step(global_step, {
                         "eval_reward": eval_info['mean_reward'],
-                        "eval_length": eval_info['mean_length'],
-                        "eval_x_pos": eval_info['mean_x_pos'],
-                        "eval_max_x_pos": eval_info['max_x_pos']
+                        "eval_absorption_interval": eval_info['mean_absorption_interval'],
+                        "eval_max_absorption_interval": eval_info['max_absorption_interval']
                     })
                 
-                # 保存最佳模型
                 if eval_info['mean_reward'] > best_reward:
                     best_reward = eval_info['mean_reward']
                     agent.save_model(os.path.join(CHECKPOINT_DIR, "best_ppo_model.pt"))
                     print(f"  New best model with reward: {best_reward:.2f}")
                     
-            # 保存模型
             if global_step % SAVE_INTERVAL == 0:
                 agent.save_model(os.path.join(CHECKPOINT_DIR, f"ppo_model_step_{global_step}.pt"))
                 
-            # 更新进度条
             pbar.update(1)
             
-            # 检查是否达到总步数
             if global_step >= timesteps:
                 break
                 
             state = next_state
         
-        # 回合结束，记录回合统计信息
         episode += 1
         agent.episode_counter = episode
         
-        # 记录回合信息
         episode_info = {
             "episode_reward": episode_reward,
             "episode_length": episode_length,
-            "max_x_pos": max_x_pos
+            "best_absorption_interval": best_absorption_interval
         }
         
-        # 打印回合信息
         if episode % LOG_INTERVAL == 0:
             print(f"\nEpisode {episode}:")
             print(f"  Reward: {episode_reward:.2f}")
-            print(f"  Length: {episode_length}")
-            print(f"  Max x position: {max_x_pos}")
+            print(f"  Best absorption interval: {best_absorption_interval:.2f}")
             
-        # 可视化回合信息
         if visualizer is not None:
-            avg_metrics = visualizer.log_episode(episode, episode_info)
-            
-            # 保存回合视频
-            if visualizer.save_video and len(episode_frames) > 0:
-                visualizer.save_episode_video(episode, episode_frames)
+            visualizer.log_episode(episode, episode_info)
                 
-    # 训练结束，保存最终模型
     agent.save_model(os.path.join(CHECKPOINT_DIR, "final_ppo_model.pt"))
     pbar.close()
 
+
 def main():
     # 解析命令行参数
-    parser = argparse.ArgumentParser(description="Train an agent to play Super Mario Bros")
+    parser = argparse.ArgumentParser(description="Train an agent to optimize material structure")
     parser.add_argument("--agent", type=str, default="dqn", choices=["dqn", "ppo"], help="Agent type (dqn or ppo)")
     parser.add_argument("--timesteps", type=int, default=TOTAL_TIMESTEPS, help="Total timesteps for training")
-    parser.add_argument("--world", type=str, default=WORLD_STAGE, help="World-stage (e.g., '1-1')")
     parser.add_argument("--seed", type=int, default=SEED, help="Random seed")
-    parser.add_argument("--render", action="store_true", help="Render environment")
     parser.add_argument("--load-model", type=str, default=None, help="Load model from path")
     args = parser.parse_args()
     
@@ -445,14 +324,15 @@ def main():
     print(f"Using device: {device}")
     
     # 创建环境
-    env = MarioEnv(
-        env_name=ENV_NAME,
-        world_stage=args.world,
-        frame_skip=FRAME_SKIP,
-        frame_stack=FRAME_STACK,
-        reward_scale=REWARD_SCALE,
-        resize_shape=RESIZE_SHAPE,
-        render_mode=RENDER_MODE if args.render else "rgb_array"
+    env = MaterialEnv(
+        matrix_size=MATERIAL_CONFIG["matrix_size"],
+        r1_range=MATERIAL_CONFIG["r1_range"],
+        p_range=MATERIAL_CONFIG["p_range"],
+        d_range=MATERIAL_CONFIG["d_range"],
+        cst_path=MATERIAL_CONFIG["cst_path"],
+        project_template=MATERIAL_CONFIG["project_template"],
+        freq_range=MATERIAL_CONFIG["freq_range"],
+        reward_weights=MATERIAL_CONFIG["reward_weights"]
     )
     
     # 创建智能体
@@ -465,18 +345,23 @@ def main():
     
     # 创建可视化器
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = os.path.join("logs", f"{args.agent}_{timestamp}")
+    log_dir = os.path.join(VISUALIZATION_CONFIG["log_dir"], f"{args.agent}_{timestamp}")
     visualizer = Visualizer(VISUALIZATION_CONFIG, log_dir=log_dir)
     
     # 打印训练配置
-    print("Training configuration:")
+    print("\nTraining configuration:")
     print(f"  Agent type: {args.agent}")
-    print(f"  World-stage: {args.world}")
     print(f"  Total timesteps: {args.timesteps}")
     print(f"  Seed: {args.seed}")
+    print("\nMaterial configuration:")
+    print(f"  Matrix size: {MATERIAL_CONFIG['matrix_size']}x{MATERIAL_CONFIG['matrix_size']}")
+    print(f"  R1 range: {MATERIAL_CONFIG['r1_range']}")
+    print(f"  P range: {MATERIAL_CONFIG['p_range']}")
+    print(f"  D range: {MATERIAL_CONFIG['d_range']}")
+    print(f"  Frequency range: {MATERIAL_CONFIG['freq_range']} THz")
     
     # 开始训练
-    print(f"Starting training with {args.agent.upper()} agent...")
+    print(f"\nStarting training with {args.agent.upper()} agent...")
     
     try:
         if args.agent == "dqn":
@@ -484,13 +369,12 @@ def main():
         elif args.agent == "ppo":
             train_ppo(agent, env, args.timesteps, visualizer)
     except KeyboardInterrupt:
-        print("Training interrupted by user")
+        print("\nTraining interrupted by user")
     finally:
-        # 关闭环境和可视化器
         env.close()
         visualizer.close()
         
-    print("Training completed!")
+    print("\nTraining completed!")
     
 
 if __name__ == "__main__":

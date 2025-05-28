@@ -152,27 +152,26 @@ class MaterialEnv(gym.Env):
         根据S参数计算奖励值
         
         Args:
-            s_params: CST仿真返回的S参数数据
+            s_params: CST仿真返回的吸收区间数据
             
         Returns:
             reward: 奖励值
         """
-        # TODO: 实现奖励计算
-        # 1. 计算透射率 T = |S21|^2
-        # 2. 计算反射率 R = |S11|^2
-        # 3. 计算吸收率 A = 1 - T - R
-        # 4. 根据权重计算总奖励
+        # 吸收区间越大越好
+        absorption_interval = s_params
         
-        # 示例奖励计算
-        transmission = 0  # 从s_params计算
-        reflection = 0    # 从s_params计算
-        absorption = 0    # 从s_params计算
+        # 基础奖励：吸收区间大小
+        base_reward = absorption_interval
         
-        reward = (
-            self.reward_weights['transmission'] * transmission +
-            self.reward_weights['reflection'] * reflection +
-            self.reward_weights['absorption'] * absorption
-        )
+        # 额外奖励：如果吸收区间超过某个阈值
+        threshold = 0.5  # 可以根据实际需求调整
+        bonus = 2.0 if absorption_interval > threshold else 0.0
+        
+        # 惩罚：如果吸收区间太小
+        penalty = -1.0 if absorption_interval < 0.1 else 0.0
+        
+        # 总奖励
+        reward = base_reward + bonus + penalty
         
         return reward
     
